@@ -16,14 +16,14 @@ import {
 import { runUserJsAndGetString, runUserJsAndGetRaw } from './jsSandbox';
 import type {
   Node,
-  TextNode,
-  ReportData,
-  Context,
-  CreateReportOptions,
-  ImagePars,
-  Images,
-  LinkPars,
-  Links,
+    TextNode,
+    ReportData,
+    Context,
+    CreateReportOptions,
+    ImagePars,
+    Images,
+    LinkPars,
+    Links,
 } from './types';
 
 const DEBUG = process.env.DEBUG_DOCX_TEMPLATES;
@@ -116,6 +116,7 @@ const produceJsReport = async (
     pendingLinkNode: null,
     linkId: 0,
     links: {},
+    pendingSplitedString: null,
     vars: {},
     loops: [],
     fJump: false,
@@ -234,6 +235,26 @@ const produceJsReport = async (
           ctx.buffers['w:tr'].fInsertedText = true;
         }
         ctx.pendingImageNode = null;
+      }
+
+      // If a table was generated, replace the parent `w:t` node with
+      // the table node
+      if (
+        ctx.pendingSplitedString &&
+        !nodeOut._fTextNode && // Flow-prevention
+        nodeOut._tag === 'w:t'
+      ) {
+        const tableNode = ctx.pendingSplitedString;
+        const parent = nodeOut._parent;
+        if (parent) {
+          tableNode._parent = parent;
+          parent._children.pop();
+          parent._children.push(tableNode);
+          // Prevent containing paragraph or table row from being removed
+          ctx.buffers['w:p'].fInsertedText = true;
+          ctx.buffers['w:tr'].fInsertedText = true;
+        }
+        ctx.pendingSplitedString = null;
       }
 
       // If a link was generated, replace the parent `w:r` node with
@@ -451,7 +472,11 @@ const processCmd = async (
         const pars = (await runUserJsAndGetRaw(data, cmdRest, ctx): ?LinkPars);
         if (pars != null) await processLink(ctx, pars);
       }
-
+    } else if (cmdName === 'SPLIT') {
+      if (!isLoopExploring(ctx)) {
+        const string = await runUserJsAndGetString(data, cmdRest, ctx);
+        if (string != null) await processStringSplit(ctx, string);
+      }
       // Invalid command
     } else throw new Error(`Invalid command syntax: '${cmd}'`);
     return out;
@@ -563,6 +588,68 @@ const processEndForIf = (
 
   return null;
 };
+
+
+const processStringSplit = async (ctx: Context, string: String) => {
+  const node = newNonTextNode;
+
+  const dottedAttributes = { "w:val": "dotted", "w:sz": "4", "w:space": "0", "w:color": "00000A" }
+
+  const cell = char => node("w:tc", {}, [
+    node("w:tcPr", {}, [
+      node("w:tcW", { "w:w": "330", "w:type": "dxa" }), // 330 - cell width !!!
+      node("w:tcBorders", {}, [
+        node("w:top", dottedAttributes),
+        node("w:left", dottedAttributes),
+        node("w:bottom", dottedAttributes),
+        node("w:right", dottedAttributes),
+        node("w:insideH", dottedAttributes),
+        node("w:insideV", dottedAttributes),
+      ]),
+      node("w:shd", { "w:fill": "auto", "w:val": "clear" })
+    ]),
+    node("w:p", {}, [
+      node("w:pPr", {}, [
+        node("w:pStyle", { "w:val": "Normal" }),
+        node("w:spacing", { "w:lineRule": "auto", "w:line": "240", "w:before": "0", "w:after": "0" })
+      ]),
+      node("w:r", {}, [
+        node("w:rPr"),
+        node("w:t", {}, [char])
+      ])
+    ])
+  ])
+
+  const table = string => node("w:tbl", {}, [
+    node("w:tblPr", {}, [
+      node("tblStyle", { "w:val": "a3" }),
+      node("w:tblW", { "w:w": "660", "w:type": "dxa" }), // 660 - full width of table
+      node("w:jc", { "w:val": "left" }),
+      node("w:tblInd", { "w:w": "0", "w:type": "dxa" }),
+      node("w:tblBorders", {}, [
+        node("w:top", dottedAttributes),
+        node("w:left", dottedAttributes),
+        node("w:bottom", dottedAttributes),
+        node("w:right", dottedAttributes),
+        node("w:insideH", dottedAttributes),
+        node("w:insideV", dottedAttributes),
+      ]),
+      node("w:tblCellMar", {}, [
+        node("w:top", { "w:w": "0", "w:type": "dxa" }),
+        node("w:left", { "w:w": "103", "w:type": "dxa" }),
+        node("w:bottom", { "w:w": "0", "w:type": "dxa" }),
+        node("w:right", { "w:w": "108", "w:type": "dxa" }),
+      ]),
+      node("w:tblLook", { "w:val": "04a0", "w:noVBand": "1", "w:noHBand": "0", "w:lastColumn": "0", "w:firstColumn": "1", "w:lastRow": "0", "w:firstRow": "1" })
+    ]),
+    node("w:tr", {}, [
+      node("w:trPr"),
+      ...[...string].map(cell)
+    ])
+  ])
+
+  ctx.pendingSplitedString = table;
+}
 
 /* eslint-disable */
 const processImage = async (ctx: Context, imagePars: ImagePars) => {
@@ -677,7 +764,7 @@ const appendTextToTagBuffers = (
   ctx: Context,
   options: {|
     fCmd?: boolean,
-    fInsertedText?: boolean,
+  fInsertedText?: boolean,
   |}
 ) => {
   if (ctx.fSeekQuery) return;
