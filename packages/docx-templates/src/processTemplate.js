@@ -242,7 +242,7 @@ const produceJsReport = async (
       if (
         ctx.pendingSplitedString &&
         !nodeOut._fTextNode && // Flow-prevention
-        nodeOut._tag === 'w:t'
+        nodeOut._tag === 'w:r'
       ) {
 
         const tableNode = ctx.pendingSplitedString;
@@ -252,7 +252,7 @@ const produceJsReport = async (
           parent._children.pop();
           parent._children.push(tableNode);
           // // Prevent containing paragraph or table row from being removed
-          // ctx.buffers['w:p'].fInsertedText = true;
+          ctx.buffers['w:p'].fInsertedText = true;
           ctx.buffers['w:tr'].fInsertedText = true;
         }
         ctx.pendingSplitedString = null;
@@ -624,7 +624,7 @@ const processStringSplit = async (ctx: Context, string: String) => {
   const table = string => node("w:tbl", {}, [
     node("w:tblPr", {}, [
       node("tblStyle", { "w:val": "a3" }),
-      node("w:tblW", { "w:w": string.length + "", "w:type": "dxa" }),
+      node("w:tblW", { "w:w": 330 * string.length + "", "w:type": "dxa" }),
       node("w:jc", { "w:val": "left" }),
       node("w:tblInd", { "w:w": "0", "w:type": "dxa" }),
       node("w:tblBorders", {}, [
