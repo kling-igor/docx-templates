@@ -244,14 +244,15 @@ const produceJsReport = async (
         !nodeOut._fTextNode && // Flow-prevention
         nodeOut._tag === 'w:t'
       ) {
+
         const tableNode = ctx.pendingSplitedString;
         const parent = nodeOut._parent;
         if (parent) {
           tableNode._parent = parent;
           parent._children.pop();
           parent._children.push(tableNode);
-          // Prevent containing paragraph or table row from being removed
-          ctx.buffers['w:p'].fInsertedText = true;
+          // // Prevent containing paragraph or table row from being removed
+          // ctx.buffers['w:p'].fInsertedText = true;
           ctx.buffers['w:tr'].fInsertedText = true;
         }
         ctx.pendingSplitedString = null;
@@ -615,7 +616,7 @@ const processStringSplit = async (ctx: Context, string: String) => {
       ]),
       node("w:r", {}, [
         node("w:rPr"),
-        node("w:t", {}, [char])
+        node('w:t', {}, [newTextNode(char)]),
       ])
     ])
   ])
@@ -623,7 +624,7 @@ const processStringSplit = async (ctx: Context, string: String) => {
   const table = string => node("w:tbl", {}, [
     node("w:tblPr", {}, [
       node("tblStyle", { "w:val": "a3" }),
-      node("w:tblW", { "w:w": "660", "w:type": "dxa" }), // 660 - full width of table
+      node("w:tblW", { "w:w": string.length + "", "w:type": "dxa" }),
       node("w:jc", { "w:val": "left" }),
       node("w:tblInd", { "w:w": "0", "w:type": "dxa" }),
       node("w:tblBorders", {}, [
@@ -648,7 +649,7 @@ const processStringSplit = async (ctx: Context, string: String) => {
     ])
   ])
 
-  ctx.pendingSplitedString = table;
+  ctx.pendingSplitedString = table(string);
 }
 
 /* eslint-disable */
