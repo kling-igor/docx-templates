@@ -26,6 +26,8 @@ import type {
     Links,
 } from './types';
 
+import splitString from './splitstring'
+
 const DEBUG = process.env.DEBUG_DOCX_TEMPLATES;
 const log: any = DEBUG ? require('./debug').mainStory : null;
 const chalk: any = DEBUG ? require('./debug').chalk : null;
@@ -590,13 +592,24 @@ const processEndForIf = (
   return null;
 };
 
+const dottedAttributes = { "w:val": "dotted", "w:sz": "4", "w:space": "0", "w:color": "00000A" }
 
-const processStringSplit = async (ctx: Context, string: String) => {
+const makeTableCellNode = char => {
+
   const node = newNonTextNode;
 
-  const dottedAttributes = { "w:val": "dotted", "w:sz": "4", "w:space": "0", "w:color": "00000A" }
+  const charNode = node("w:r", {}, [
+    node("w:rPr"),
+    node("w:t", {}, [newTextNode(char)]),
+  ])
 
-  const cell = char => node("w:tc", {}, [
+  const emptyNode = node("w:r", {}, [
+    node("w:rPr")
+  ])
+
+  const getCharNode = () => char === ' ' ? emptyNode : charNode
+
+  return node("w:tc", {}, [
     node("w:tcPr", {}, [
       node("w:tcW", { "w:w": "330", "w:type": "dxa" }), // 330 - cell width !!!
       node("w:tcBorders", {}, [
@@ -604,27 +617,81 @@ const processStringSplit = async (ctx: Context, string: String) => {
         node("w:left", dottedAttributes),
         node("w:bottom", dottedAttributes),
         node("w:right", dottedAttributes),
-        node("w:insideH", dottedAttributes),
-        node("w:insideV", dottedAttributes),
       ]),
       node("w:shd", { "w:fill": "auto", "w:val": "clear" })
     ]),
     node("w:p", {}, [
       node("w:pPr", {}, [
         node("w:pStyle", { "w:val": "Normal" }),
-        node("w:spacing", { "w:lineRule": "auto", "w:line": "240", "w:before": "0", "w:after": "0" })
-      ]),
-      node("w:r", {}, [
+        node("w:spacing", { "w:lineRule": "auto", "w:line": "240", "w:before": "0", "w:after": "0" }),
         node("w:rPr"),
-        node('w:t', {}, [newTextNode(char)]),
-      ])
+      ]),
+      getCharNode(),
+    ]),
+  ])
+}
+
+const mergedColumn = maxLength => {
+  const node = newNonTextNode;
+  return node("w:tr", {}, [
+    node("w:trPr"),
+    node("w:tc", {}, [
+      node("w:tcPr", {}, [
+        node("w:tcW", { "w:w": (330 * maxLength).toString(), "w:type": "dxa" }),
+        node("w:gridSpan", { "w:val": maxLength.toString() }),
+        node("w:tcBorders", {}, [
+          node("w:top", { "w:val": "dotted", "w:sz": "4", "w:space": "0", "w:color": "00000A" }),
+          node("w:bottom", { "w:val": "dotted", "w:sz": "4", "w:space": "0", "w:color": "00000A" }),
+          node("w:left", { "w:val": "nil" }),
+          node("w:right", { "w:val": "nil" }),
+        ]),
+        node("w:shd", { "w:fill": "auto", "w:val": "clear" }),
+      ]),
+      node("w:p", {}, [
+        node("w:pPr", {}, [
+          node("w:pStyle", { "w:val": "Normal" }),
+          node("w:spacing", { "w:lineRule": "auto", "w:line": "240", "w:before": "0", "w:after": "0" }),
+          node("w:rPr"),
+        ]),
+        node("w:r", {}, [
+          node("w:rPr"),
+        ]),
+      ]),
     ])
   ])
+}
 
-  const table = string => node("w:tbl", {}, [
+const makeTableNode = (string, maxLength) => {
+
+  const node = newNonTextNode;
+
+  const strings = splitString(string, maxLength)
+
+  const rows = []
+
+  strings.forEach((substring, index) => {
+    const str = substring.length < maxLength ? (substring + ' '.repeat(maxLength - substring.length)) : substring
+
+    rows.push(node("w:tr", {}, [
+      node("w:trPr"),
+      ...[...str].map(makeTableCellNode)
+    ]))
+
+    if (index < strings.length - 1) {
+      rows.push(mergedColumn(maxLength))
+    }
+  })
+
+  const grids = []
+  for (let i = 0; i < maxLength; i++) {
+    grids.push(node("w:gridCol", { "w:w": "330" }))
+  }
+
+
+  return node("w:tbl", {}, [
     node("w:tblPr", {}, [
       node("tblStyle", { "w:val": "a3" }),
-      node("w:tblW", { "w:w": 330 * string.length + "", "w:type": "dxa" }),
+      node("w:tblW", { "w:w": (330 * maxLength).toString(), "w:type": "dxa" }),
       node("w:jc", { "w:val": "left" }),
       node("w:tblInd", { "w:w": "0", "w:type": "dxa" }),
       node("w:tblBorders", {}, [
@@ -632,8 +699,6 @@ const processStringSplit = async (ctx: Context, string: String) => {
         node("w:left", dottedAttributes),
         node("w:bottom", dottedAttributes),
         node("w:right", dottedAttributes),
-        node("w:insideH", dottedAttributes),
-        node("w:insideV", dottedAttributes),
       ]),
       node("w:tblCellMar", {}, [
         node("w:top", { "w:w": "0", "w:type": "dxa" }),
@@ -643,13 +708,14 @@ const processStringSplit = async (ctx: Context, string: String) => {
       ]),
       node("w:tblLook", { "w:val": "04a0", "w:noVBand": "1", "w:noHBand": "0", "w:lastColumn": "0", "w:firstColumn": "1", "w:lastRow": "0", "w:firstRow": "1" })
     ]),
-    node("w:tr", {}, [
-      node("w:trPr"),
-      ...[...string].map(cell)
-    ])
+    node("w:tblGrid", {}, grids),
+    ...[...rows],
   ])
+}
 
-  ctx.pendingSplitedString = table(string);
+const processStringSplit = async (ctx: Context, string: String) => {
+  // 30 можно было бы брать из параметров команды
+  ctx.pendingSplitedString = makeTableNode(string, 30);
 }
 
 /* eslint-disable */
@@ -794,4 +860,4 @@ const getNextItem = (items, curIdx0) => {
 // ==========================================
 // Public API
 // ==========================================
-export { extractQuery, produceJsReport };
+export { extractQuery, produceJsReport, makeTableNode };
