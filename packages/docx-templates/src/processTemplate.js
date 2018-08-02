@@ -255,7 +255,7 @@ const produceJsReport = async (
           parent._children.push(tableNode);
           // // Prevent containing paragraph or table row from being removed
           ctx.buffers['w:p'].fInsertedText = true;
-          ctx.buffers['w:tr'].fInsertedText = true;
+          ctx.buffers['w:tr'].fInsertedText = false;
         }
         ctx.pendingSplitedString = null;
       }
@@ -690,7 +690,6 @@ const makeTableNode = (string, maxLength) => {
 
   return node("w:tbl", {}, [
     node("w:tblPr", {}, [
-      node("tblStyle", { "w:val": "a3" }),
       node("w:tblW", { "w:w": (330 * maxLength).toString(), "w:type": "dxa" }),
       node("w:jc", { "w:val": "left" }),
       node("w:tblInd", { "w:w": "0", "w:type": "dxa" }),

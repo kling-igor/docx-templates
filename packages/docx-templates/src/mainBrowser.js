@@ -120,7 +120,7 @@ const createReport = async (options: UserOptionsInternal) => {
   //     ignoreKeys: ['_parent', '_fTextNode', '_attrs'],
   //   });
   DEBUG && log.debug('Converting report to XML...');
-  const reportXml = buildXml(report1, xmlOptions, '  ');
+  const reportXml = buildXml(report1, xmlOptions);
   if (_probe === 'XML') return reportXml;
   DEBUG && log.debug('Writing report...');
   zipSetText(zip, `${templatePath}/document.xml`, reportXml);
