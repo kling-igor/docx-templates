@@ -478,7 +478,7 @@ const processCmd = async (
       }
     } else if (cmdName === 'SPLIT') {
       if (!isLoopExploring(ctx)) {
-        const string = await runUserJsAndGetString(data, cmdRest, ctx);
+        const string = await runUserJsAndGetRaw(data, cmdRest, ctx);
         if (string != null) await processStringSplit(ctx, string);
       }
       // Invalid command
@@ -713,9 +713,14 @@ const makeTableNode = (string, maxLength) => {
   ])
 }
 
-const processStringSplit = async (ctx: Context, string: String) => {
-  // 30 можно было бы брать из параметров команды
-  ctx.pendingSplitedString = makeTableNode(string, 30);
+const processStringSplit = async (ctx: Context, stringOrObject: Any) => {
+  if (typeof stringOrObject === 'string') {
+    ctx.pendingSplitedString = makeTableNode(stringOrObject, stringOrObject.length);
+  }
+  else if (typeof stringOrObject === 'object') {
+    const { string, max } = stringOrObject
+    ctx.pendingSplitedString = makeTableNode(string, max || string.length);
+  }
 }
 
 /* eslint-disable */
