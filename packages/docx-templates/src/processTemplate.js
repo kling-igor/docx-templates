@@ -239,8 +239,8 @@ const produceJsReport = async (
         ctx.pendingImageNode = null;
       }
 
-      // If a table was generated, replace the parent `w:t` node with
-      // the table node
+      // If a splitted string as table was generated, replace the GRANDPARENT `w:p` node with
+      // the table one
       if (
         ctx.pendingSplitedString &&
         !nodeOut._fTextNode && // Flow-prevention
@@ -248,7 +248,8 @@ const produceJsReport = async (
       ) {
 
         const tableNode = ctx.pendingSplitedString;
-        const parent = nodeOut._parent;
+        // const parent = nodeOut._parent;
+        const parent = nodeOut._parent._parent; // w:t->w:r->w:p
         if (parent) {
           tableNode._parent = parent;
           parent._children.pop();
