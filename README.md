@@ -144,6 +144,40 @@ createReport({
 });
 ```
 
+Even using Node you can specify how template can be read in to buffer, how report can be saved and how images in template processing can be read. Follow the example below:
+
+```
+const fse = require('fs-extra')
+const path = require('path')
+
+const getImage = async (imagePar) => {
+  const { path: imgPath } = imagePars;
+  if (!imgPath) throw new Error('Specify image `path`');
+  const extension = path.extname(imgPath).toLowerCase()
+  const data = await fse.readFile(imgPath);
+  return { extension, data };
+}
+
+const readTemplate = async name => {
+  const buffer = await fse.readFile(name)
+  return buffer
+}
+
+const writeReport = async (name, report) => {
+  await fse.writeFile(name, report);
+}
+
+const makeReport = async (template, output, data, delimeter = '#') => {
+  await createReport({ template, output, data, cmdDelimiter: delimeter, additionalJsContext }, getImage, readTemplate, writeReport)
+}
+
+makeReport('template.docx', 'result.docx', { name: 'John Dow', image: { width: 10, height: 15, path: 'image.png' }, splitText: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit'})
+
+```
+
+These are internally default implementations. It is up to you to handle name of template or imagePair object. The name can be an id or whatever else and can be read from network or db. Anyway you have to return buffer to proceed.
+
+
 Check out the examples [using Webpack](https://github.com/guigrpa/docx-templates/tree/master/packages/example-webpack) and [using Browserify](https://github.com/guigrpa/docx-templates/tree/master/packages/example-browserify).
 
 ## Writing templates
@@ -352,6 +386,25 @@ Define a name for a complete command (especially useful for formatting tables):
 | +++END-FOR person+++         |                         |
 ----------------------------------------------------------
 ```
+
+### `SPLIT`
+
+Split string in to charaters in table cells - one character in one cell
+
+```
++++SPLIT ({string:name, max:30})+++
+```
+
+This splits string into table of 30 cells. It adds new rows if string is more when 30 symbols
+Define max length on your own needs (may be with try and error approach :) )
+
+
+```
++++SPLIT name+++
+```
+
+This splits string in one table row only
+
 
 ## Replacing template images
 
