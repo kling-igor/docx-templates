@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import { set as timmSet } from 'timm';
 import createReportBrowser from './mainBrowser';
-import type { UserOptions, UserOptionsInternal, ImagePars } from './types';
+import { UserOptions, UserOptionsInternal, ImagePars } from './types';
 
 const DEBUG = process.env.DEBUG_DOCX_TEMPLATES;
 const log: any = DEBUG ? require('./debug').mainStory : null;
@@ -20,9 +20,6 @@ const getDefaultOutput = (templatePath: string): string => {
 };
 
 const defaultGetImageData = async (imagePars: ImagePars) => {
-
-  console.log('!!!! DEFAULT GET IMAGE')
-
   const { data, extension } = imagePars;
   if (data) {
     if (!extension) {
@@ -39,7 +36,23 @@ const defaultGetImageData = async (imagePars: ImagePars) => {
   return { extension: path.extname(imgPath).toLowerCase(), data: buffer };
 };
 
-const createReport = async (options: UserOptions, getImageData: Function = defaultGetImageData) => {
+const defaultReadTemplate = async name => {
+  const buffer = await fs.readFile(name)
+  return buffer
+}
+
+
+const defaultWriteReport = async (name, report) => {
+  // await fs.ensureDir(path.dirname(output));
+  await fs.writeFile(name, report);
+}
+
+const createReport = async (
+  options: UserOptions,
+  getImageData: Function = defaultGetImageData,
+  readTemplate: Function = defaultReadTemplate,
+  writeReport: Function = defaultWriteReport) => {
+
   const { template, replaceImages, _probe } = options;
   const output = options.output || getDefaultOutput(template);
   DEBUG && log.debug(`Output file: ${output}`);
@@ -48,7 +61,7 @@ const createReport = async (options: UserOptions, getImageData: Function = defau
   // Load template from filesystem
   // ---------------------------------------------------------
   DEBUG && log.debug(`Reading template from disk at ${template}...`);
-  const buffer = await fs.readFile(template);
+  const buffer = readTemplate(template) // await fs.readFile(template);
   const newOptions: UserOptionsInternal = (timmSet(
     options,
     'template',
@@ -83,8 +96,11 @@ const createReport = async (options: UserOptions, getImageData: Function = defau
   // Write the result on filesystem
   // ---------------------------------------------------------
   DEBUG && log.debug('Writing report to disk...');
-  await fs.ensureDir(path.dirname(output));
-  await fs.writeFile(output, report);
+
+  await writeReport(output, report)
+
+  // await fs.ensureDir(path.dirname(output));
+  // await fs.writeFile(output, report);
   return null;
 };
 
