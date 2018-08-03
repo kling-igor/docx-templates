@@ -32,13 +32,13 @@ const DEBUG = process.env.DEBUG_DOCX_TEMPLATES;
 const log: any = DEBUG ? require('./debug').mainStory : null;
 const chalk: any = DEBUG ? require('./debug').chalk : null;
 
-// Load the fs module (will only succeed in node)
-let fs;
-try {
-  fs = require('fs-extra'); // eslint-disable-line
-} catch (err) {
-  /* ignore */
-}
+// // Load the fs module (will only succeed in node)
+// let fs;
+// try {
+//   fs = require('fs-extra'); // eslint-disable-line
+// } catch (err) {
+//   /* ignore */
+// }
 
 let gCntIf = 0;
 
@@ -99,7 +99,8 @@ type ReportOutput = {
 const produceJsReport = async (
   data: ?ReportData,
   template: Node,
-  options: CreateReportOptions
+  options: CreateReportOptions,
+  getImageData: Function
 ): Promise<ReportOutput> => {
   const out: Node = cloneNodeWithoutChildren(template);
   const ctx: Context = {
@@ -330,7 +331,7 @@ const produceJsReport = async (
         parent._tag === 'w:t'
       ) {
         const newNodeAsTextNode: TextNode = (newNode: Object);
-        newNodeAsTextNode._text = await processText(data, nodeIn, ctx);
+        newNodeAsTextNode._text = await processText(data, nodeIn, ctx, getImageData);
       }
 
       // Execute the move in the output tree
@@ -354,7 +355,8 @@ const produceJsReport = async (
 const processText = async (
   data: ?ReportData,
   node: TextNode,
-  ctx: Context
+  ctx: Context,
+  getImageData: Function
 ): Promise<string> => {
   const { cmdDelimiter } = ctx.options;
   const text = node._text;
@@ -377,7 +379,7 @@ const processText = async (
     // and toggle "command mode"
     if (idx < segments.length - 1) {
       if (ctx.fCmd) {
-        const cmdResultText = await processCmd(data, node, ctx);
+        const cmdResultText = await processCmd(data, node, ctx, getImageData);
         if (cmdResultText != null) {
           outText += cmdResultText;
           appendTextToTagBuffers(cmdResultText, ctx, {
@@ -398,7 +400,8 @@ const processText = async (
 const processCmd = async (
   data: ?ReportData,
   node: Node,
-  ctx: Context
+  ctx: Context,
+  getImageData: Function
 ): Promise<?string> => {
   const cmd = getCommand(ctx);
   DEBUG && log.debug(`Processing cmd: ${chalk.cyan.bold(cmd)}`);
@@ -466,8 +469,8 @@ const processCmd = async (
       // IMAGE <code>
     } else if (cmdName === 'IMAGE') {
       if (!isLoopExploring(ctx)) {
-        const img = (await runUserJsAndGetRaw(data, cmdRest, ctx): ?ImagePars);
-        if (img != null) await processImage(ctx, img);
+        const imgPair = (await runUserJsAndGetRaw(data, cmdRest, ctx): ?ImagePars);
+        if (imgPair != null) await processImage(ctx, imgPair, getImageData);
       }
 
       // LINK <code>
@@ -724,7 +727,12 @@ const processStringSplit = async (ctx: Context, stringOrObject: Any) => {
 }
 
 /* eslint-disable */
-const processImage = async (ctx: Context, imagePars: ImagePars) => {
+const processImage = async (ctx: Context, imagePars: ImagePars, getImageData: Function) => {
+
+  if (!getImageData) {
+    throw new TypeError(`getImageData should be a function`)
+  }
+
   const cx = (imagePars.width * 360e3).toFixed(0);
   const cy = (imagePars.height * 360e3).toFixed(0);
   ctx.imageId += 1;
@@ -794,22 +802,23 @@ const processImage = async (ctx: Context, imagePars: ImagePars) => {
   ctx.pendingImageNode = drawing;
 };
 
-const getImageData = async (imagePars: ImagePars) => {
-  const { data, extension } = imagePars;
-  if (data) {
-    if (!extension) {
-      throw new Error(
-        'If you return image `data`, make sure you return an extension as well!'
-      );
-    }
-    return { extension, data };
-  }
-  const { path: imgPath } = imagePars;
-  if (!imgPath) throw new Error('Specify either image `path` or `data`');
-  if (!fs) throw new Error('Cannot read image from file in the browser');
-  const buffer = await fs.readFile(imgPath);
-  return { extension: path.extname(imgPath).toLowerCase(), data: buffer };
-};
+// habe to be injected
+// const getImageData = async (imagePars: ImagePars) => {
+//   const { data, extension } = imagePars;
+//   if (data) {
+//     if (!extension) {
+//       throw new Error(
+//         'If you return image `data`, make sure you return an extension as well!'
+//       );
+//     }
+//     return { extension, data };
+//   }
+//   const { path: imgPath } = imagePars;
+//   if (!imgPath) throw new Error('Specify either image `path` or `data`');
+//   if (!fs) throw new Error('Cannot read image from file in the browser');
+//   const buffer = await fs.readFile(imgPath);
+//   return { extension: path.extname(imgPath).toLowerCase(), data: buffer };
+// };
 
 const processLink = async (ctx: Context, linkPars: LinkPars) => {
   const { url } = linkPars;

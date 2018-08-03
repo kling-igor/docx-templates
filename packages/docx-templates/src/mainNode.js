@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs-extra';
 import { set as timmSet } from 'timm';
 import createReportBrowser from './mainBrowser';
-import type { UserOptions, UserOptionsInternal } from './types';
+import type { UserOptions, UserOptionsInternal, ImagePars } from './types';
 
 const DEBUG = process.env.DEBUG_DOCX_TEMPLATES;
 const log: any = DEBUG ? require('./debug').mainStory : null;
@@ -19,7 +19,27 @@ const getDefaultOutput = (templatePath: string): string => {
   return path.join(dir, `${name}_report${ext}`);
 };
 
-const createReport = async (options: UserOptions) => {
+const defaultGetImageData = async (imagePars: ImagePars) => {
+
+  console.log('!!!! DEFAULT GET IMAGE')
+
+  const { data, extension } = imagePars;
+  if (data) {
+    if (!extension) {
+      throw new Error(
+        'If you return image `data`, make sure you return an extension as well!'
+      );
+    }
+    return { extension, data };
+  }
+  const { path: imgPath } = imagePars;
+  if (!imgPath) throw new Error('Specify either image `path` or `data`');
+  if (!fs) throw new Error('Cannot read image from file in the browser');
+  const buffer = await fs.readFile(imgPath);
+  return { extension: path.extname(imgPath).toLowerCase(), data: buffer };
+};
+
+const createReport = async (options: UserOptions, getImageData: Function = defaultGetImageData) => {
   const { template, replaceImages, _probe } = options;
   const output = options.output || getDefaultOutput(template);
   DEBUG && log.debug(`Output file: ${output}`);
@@ -56,7 +76,7 @@ const createReport = async (options: UserOptions) => {
   // ---------------------------------------------------------
   // Parse and fill template (in-memory)
   // ---------------------------------------------------------
-  const report = await createReportBrowser(newOptions);
+  const report = await createReportBrowser(newOptions, getImageData);
   if (_probe != null) return report;
 
   // ---------------------------------------------------------

@@ -28,7 +28,7 @@ const chalk: any = DEBUG ? require('./debug').chalk : null;
 // ==========================================
 // Main
 // ==========================================
-const createReport = async (options: UserOptionsInternal) => {
+const createReport = async (options: UserOptionsInternal, getImageData: Function) => {
   DEBUG && log.debug('Report options:', { attach: options });
   const { template, data, queryVars, replaceImages, _probe } = options;
   const templatePath = 'word';
@@ -108,7 +108,8 @@ const createReport = async (options: UserOptionsInternal) => {
   const result = await produceJsReport(
     queryResult,
     finalTemplate,
-    createOptions
+    createOptions,
+    getImageData
   );
   const { report: report1, images: images1, links: links1 } = result;
   if (_probe === 'JS') return report1;
