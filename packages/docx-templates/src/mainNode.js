@@ -97,11 +97,12 @@ const createReport = async (
   // ---------------------------------------------------------
   DEBUG && log.debug('Writing report to disk...');
 
-  await writeReport(output, report)
+  // custom writeReport operation may return something
+  const result = await writeReport(output, report)
 
   // await fs.ensureDir(path.dirname(output));
   // await fs.writeFile(output, report);
-  return null;
+  return result;
 };
 
 // ==========================================
